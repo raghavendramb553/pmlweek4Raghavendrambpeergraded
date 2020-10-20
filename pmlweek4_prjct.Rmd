@@ -1,0 +1,212 @@
+---
+title: "pmlweek4project"
+author: "Raghavendra"
+---
+```{r,warning=FALSE,message=FALSE,include=FALSE,echo=FALSE}
+library(dplyr)
+library(ggplot2)
+library(DT)
+library(caret)
+library(knitr)
+library(corrplot)
+library(plotly)
+library(correlationfunnel)
+library(GGally)
+library(e1071)
+```
+
+Loading both training and testing data
+
+```{r}
+Teach<-read.csv("pml-training.csv", stringsAsFactors = F,na.strings = c("","NA","#DIV/0!"))
+Ythu<-read.csv("pml-testing.csv", stringsAsFactors = F,na.strings = c("","NA","#DIV/0!"))
+dim(Teach); 
+dim(Ythu)
+```
+
+
+```{r}
+teach_devide <- createDataPartition(Teach$classe, p = 0.8, list = F)
+Val_data <- Teach[-teach_devide,]
+Teach <- Teach[teach_devide,]
+dim(Teach); 
+dim(Val_data)
+```
+
+```{r}
+table(Teach$classe)/nrow(Teach)
+```
+
+```{r}
+kl <- sapply(select(Teach,names(Teach)[grepl("_belt",names(Teach))]),function(x) sum(is.na(x)))
+kl
+```
+
+```{r}
+vk <- sapply(select(Teach,names(Teach)[grepl("_arm",names(Teach))]),function(x) sum(is.na(x)))
+vk
+```  
+
+```{r}
+cg <- sapply(select(Teach,names(Teach)[grepl("_forearm",names(Teach))]),function(x) sum(is.na(x)))
+cg
+```  
+
+```{r}
+rj <- sapply(select(Teach,names(Teach)[grepl("_dumbbell",names(Teach))]),function(x) sum(is.na(x)))
+rj
+``` 
+
+```{r}
+rcb <- c(names(kl[kl!=0]), names(vk[vk!=0]),names(cg[cg!=0]),names(rj[rj!=0]))
+length(rcb)
+```
+
+```{r}
+foni_fg<-tbl_df(Teach%>%select(-rcb,-c(X,user_name,raw_timestamp_part_1,raw_timestamp_part_2,cvtd_timestamp,new_window,num_window)))
+foni_fg$classe<-as.factor(foni_fg$classe)
+foni_fg[,1:52]<-lapply(foni_fg[,1:52],as.numeric)
+dim(foni_fg)
+```
+
+```{r,fig.height=10,fig.width=10}
+o_o <- cor(select(foni_fg, -classe))
+diag(o_o) <- 0
+o_o <- which(abs(o_o)>0.8,arr.ind = T)
+o_o <- unique(row.names(o_o))
+corrplot(cor(select(foni_fg,o_o)),type="upper",order="hclust",method="number")
+```
+
+```{r}
+zxn <-foni_fg%>%binarize(n_bins=4,thresh_infreq=0.01)
+```
+
+```{r,fig.align="center",fig.width=8,fig.height=10}
+ms <- zxn %>% correlate(target=classe__A) 
+```
+
+```{r, echo=FALSE, eval=FALSE}
+st <- head(ms %>% mutate(corr = abs(correlation)) %>%arrange(desc(corr))%>%select(feature) %>% unique(),20)
+st$feature[which(st$feature%in%o_o)]
+```
+
+```{r,fig.align="center",fig.width=8,fig.height=10}
+ar<-zxn%>%correlate(target=classe__B)
+```
+
+```{r, echo=FALSE, eval=FALSE}
+yc <- head(ar%>%mutate(corr = abs(correlation)) %>% arrange(desc(corr)) %>% select(feature) %>% unique(),20)
+yc$feature[which(yc$feature %in% o_o)]
+```
+
+```{r,fig.align="center",fig.width=8,fig.height=10}
+ws <- zxn%>%correlate(target=classe__C)
+
+```
+
+```{r, echo=FALSE, eval=FALSE}
+cm <- head(ws%>%mutate(corr=abs(correlation))%>%arrange(desc(corr)) %>% select(feature) %>% unique(),20)
+cm$feature[which(cm$feature %in% o_o)]
+```
+
+```{r,fig.align="center",fig.width=8,fig.height=10}
+iu<-zxn%>%correlate(target=classe__D)
+
+```
+
+```{r, echo=FALSE, eval=FALSE}
+ma <- head(iu%>%mutate(corr=abs(correlation) %>%arrange(desc(corr)) %>% select(feature) %>% unique(),20)
+ma$feature[which(ma$feature %in% o_o)]
+```
+
+```{r,fig.align="center",fig.width=8,fig.height=10}
+hj<-zxn %>% correlate(target = classe__E)
+```
+
+```{r, echo=FALSE, eval=FALSE}
+af<-head(corr_e %>% mutate(corr = abs(correlation))%>%arrange(desc(corr)) %>% select(feature) %>% unique(),20)
+af$feature[which(af$feature%in%o_o)]
+```
+
+```{r}
+a_pol <- c("magnet_arm_x", "pitch_forearm" , "magnet_dumbbell_y", "roll_forearm", "gyros_dumbbell_y") 
+b_pol <- c("magnet_dumbbell_y", "magnet_dumbbell_x" , "roll_dumbbell" , 
+           "magnet_belt_y" , "accel_dumbbell_x" )
+c_pol <- c("magnet_dumbbell_y", "roll_dumbbell" , "accel_dumbbell_y" , 
+           "magnet_dumbbell_x", "magnet_dumbbell_z")
+d_pol <- c("pitch_forearm" , "magnet_arm_y" , "magnet_forearm_x",
+           "accel_dumbbell_y", "accel_forearm_x")
+e_pol <- c("magnet_belt_y" , "magnet_belt_z" , "roll_belt", 
+           "gyros_belt_z" , "magnet_dumbbell_y")
+jp <- character()
+for(c in c(a_pol,b_pol,c_pol,d_pol,e_pol)){
+  jp <- union(jp,c)
+}
+foni_fg2 <- foni_fg%>%select(jp,classe)
+data.frame("arm" = sum(grepl("_arm",jp)),"forearm"=sum(grepl("_forearm",jp)),"belt"=sum(grepl("_belt",jp)),"dumbbell"=sum(grepl("_dumbbell",jp)))
+```
+
+```{r, fig.align="center",fig.height=15,fig.width=15}
+k_b<-function(data, mapping, ...) {
+  ggplot(data = data, mapping=mapping)+geom_density(..., alpha = 0.3)+scale_fill_brewer(palette="Set2") 
+}
+k_n<-function(data, mapping, ...) {
+  ggplot(data = data, mapping=mapping)+geom_point(..., alpha = 0.1)+ scale_fill_brewer(palette="Set2") 
+}
+ggpairs(foni_fg2,columns = 1:5,aes(color = classe),lower = list(continuous = k_n),diag = list(continuous = k_b))
+```
+
+```{r,fig.align="center",fig.height=15,fig.width=15}
+ggpairs(foni_fg2,columns=6:10,aes(color=classe),lower=list(continuous=k_n),diag =list(continuous=k_b))
+```
+
+```{r,fig.align="center",fig.height=15,fig.width=15}
+ggpairs(foni_fg2,columns = 11:17,aes(color = classe),lower=list(continuous=k_n),diag=list(continuous=k_b))
+```
+
+```{r}
+TeachF <- Teach %>% select(jp,classe)
+Thv_infoF<-Val_data %>% select(jp,classe)
+TeachF[,1:17] <- sapply(TeachF[,1:17],as.numeric)
+Thv_infoF[,1:17] <- sapply(Thv_infoF[,1:17],as.numeric)
+thm<-c("A", "B", "C", "D", "E")
+abb <- preProcess(TeachF[,-18],method = c("center","scale","BoxCox"))
+Se_x <- predict(abb,select(TeachF,-classe))
+Se_y <- factor(TeachF$classe,levels=thm)
+W_x <- predict(abb,select(Thv_infoF,-classe))
+W_y<- factor(Thv_infoF$classe,levels=thm)
+K_tr <- trainControl(method="cv", number=5)
+KT_n <- train(x = Se_x,y = Se_y,method = "rpart", trControl = K_tr)
+WF_n <- train(x = Se_x,y = Se_y, method = "rf", trControl = K_tr,verbose=FALSE, metric = "Accuracy")
+ERF_n <- train(x = Se_x,y = Se_y,method = "gbm",trControl=K_tr,verbose=FALSE)
+RGN_n <- svm(x = Se_x,y = Se_y,kernel = "polynomial", cost = 10)
+```
+
+```{r}
+confusionMatrix(predict(KT_n,W_x),W_y)
+```
+
+```{r}
+confusionMatrix(predict(WF_n,W_x),W_y)
+```
+
+```{r}
+plot(WF_n$finalModel,main="Error VS no of tree")
+```
+
+```{r}
+confusionMatrix(predict(ERF_n,W_x),W_y)
+```
+
+```{r}
+confusionMatrix(predict(RGN_n,W_x),W_y)
+```
+
+```{r}
+Ythu2 <- Ythu %>% select(jp,problem_id)
+xYthu <- Ythu2 %>% select(jp)
+result <- data.frame("problem_id" = Ythu$problem_id,"PREDICTION_RF"=predict(WF_n,xYthu),"PREDICTION_GBM"=predict(ERF_n,xYthu),"PREDICTION_SVM"=predict(RGN_n,xYthu))
+result
+```
+
+```{r}
